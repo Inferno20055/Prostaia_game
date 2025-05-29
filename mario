@@ -1,6 +1,7 @@
 import pygame
 import sys
-
+import random
+текстуры используй пока теже
 pygame.init()
 
 # Размеры окна
@@ -14,6 +15,12 @@ clock = pygame.time.Clock()
 player_image = pygame.transform.scale(pygame.image.load("ship.png"), (50, 50))
 platform_image = pygame.Surface((100, 20))
 platform_image.fill((100, 50, 0))
+asteroid_image = pygame.transform.scale(pygame.image.load("asteroid.png"),
+                                        (40, 40))  # Предположим, есть файл asteroid.png
+
+# Создаем шрифт для текста
+font = pygame.font.SysFont(None, 48)
+
 
 # Класс игрока
 class Player(pygame.sprite.Sprite):
@@ -43,7 +50,7 @@ class Player(pygame.sprite.Sprite):
             self.on_ground = False
 
         # Гравитация
-        self.y_speed += 0.8
+        self.y_speed += 0.3
 
         # Обновление позиции по горизонтали и вертикали
         self.rect.x += self.x_speed
@@ -59,54 +66,114 @@ class Player(pygame.sprite.Sprite):
         # Проверка столкновений с платформами снизу (падение)
         for platform in platforms:
             if self.rect.colliderect(platform.rect):
-                # Если падаем вниз и пересекаем платформу снизу
                 if self.y_speed > 0 and self.rect.bottom > platform.rect.top:
                     self.rect.bottom = platform.rect.top
                     self.y_speed = 0
                     self.on_ground = True
+
 
 # Класс платформы
 class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         self.image = platform_image
-        self.rect = self.image.get_rect(topleft=(x,y))
+        self.rect = self.image.get_rect(topleft=(x, y))
+
+
+# Класс врага (астероид)
+class Asteroid(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        x_pos = random.randint(0, WIDTH - 40)
+        y_pos = random.randint(-100, -40)
+        self.image = asteroid_image
+        self.rect = self.image.get_rect(topleft=(x_pos, y_pos))
+        self.speed_y = random.randint(3, 6)
+
+    def update(self):
+        self.rect.y += self.speed_y
+        if self.rect.top > HEIGHT:
+            # Возвращаем астероид наверх с новой позицией и скоростью
+            self.rect.x = random.randint(0, WIDTH - 40)
+            self.rect.y = random.randint(-100, -40)
+            self.speed_y = random.randint(3, 6)
+
 
 # Создаем группы спрайтов
 player_group = pygame.sprite.Group()
 platforms_group = pygame.sprite.Group()
+asteroids_group = pygame.sprite.Group()
 
 # Создаем игрока
 player = Player()
 player_group.add(player)
 
-# Создаем платформы вручную
+# Создаем платформы вручную для паркура и интересных препятствий
 platforms_positions = [
     (0, HEIGHT - 50),
-    (200, HEIGHT - 150),
-    (400, HEIGHT - 250),
-    (600, HEIGHT - 350),
+    (150, HEIGHT - 150),
+    (350, HEIGHT - 250),
+    (550, HEIGHT - 350),
+    (300, HEIGHT - 450),
 ]
 for pos in platforms_positions:
     p = Platform(*pos)
     platforms_group.add(p)
 
-# Основной цикл игры
+# Создаем астероиды врагов (несколько штук)
+for _ in range(5):
+    asteroid = Asteroid()
+    asteroids_group.add(asteroid)
+
+# Высота невидимой опасной зоны внизу экрана (например, последние 10 пикселей)
+danger_zone_height = 10
+
+game_over = False
+
+# Основной цикл игры с задержкой после проигрыша для отображения сообщения "Вы проиграли"
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
 
-    # Обновляем игрока и проверяем столкновения с платформами
-    player.update()
-    player.handle_platform_collision(platforms_group)
+    if not game_over:
+        # Обновляем игрока и проверяем столкновения с платформами и астероидами
+        player.update()
+        player.handle_platform_collision(platforms_group)
 
-    # Отрисовка сцены
+        asteroids_group.update()
+
+        # Проверка касания с невидимой опасной зоной внизу экрана или столкновение с астероидами
+        if player.rect.bottom >= HEIGHT - danger_zone_height:
+            game_over = True
+
+        # Столкновение с астероидами — тоже проигрыш или потеря жизни? Для простоты — проигрыш.
+        if pygame.sprite.spritecollideany(player, asteroids_group):
+            game_over = True
+
+    # Отрисовка сцены или финального сообщения при проигрыше
     screen.fill((135, 206, 235))  # голубой фон
 
-    platforms_group.draw(screen)
-    player_group.draw(screen)
+    if not game_over:
+        platforms_group.draw(screen)
+        asteroids_group.draw(screen)
+        player_group.draw(screen)
+    else:
+        # Выводим сообщение "Вы проиграли"
+
+        text_surface = font.render("Вы проиграли", True, (255, 0, 0))
+
+        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+
+        screen.blit(text_surface, text_rect)
 
     pygame.display.flip()
+
+    if game_over:
+        # Задержка чтобы увидеть сообщение перед закрытием или перезапуском.
+        pygame.time.wait(3000)
+        pygame.quit()
+        sys.exit()
+
     clock.tick(60)
