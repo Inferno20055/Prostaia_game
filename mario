@@ -1,0 +1,112 @@
+import pygame
+import sys
+
+pygame.init()
+
+# Размеры окна
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Прыжки и платформы")
+
+clock = pygame.time.Clock()
+
+# Загрузка изображений
+player_image = pygame.transform.scale(pygame.image.load("ship.png"), (50, 50))
+platform_image = pygame.Surface((100, 20))
+platform_image.fill((100, 50, 0))
+
+# Класс игрока
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = player_image
+        self.rect = self.image.get_rect()
+        self.rect.x = 50
+        self.rect.y = HEIGHT - 150
+        self.x_speed = 0
+        self.y_speed = 0
+        self.on_ground = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        # Горизонтальное движение
+        if keys[pygame.K_LEFT]:
+            self.x_speed = -5
+        elif keys[pygame.K_RIGHT]:
+            self.x_speed = 5
+        else:
+            self.x_speed = 0
+
+        # Прыжок (если нажата клавиша SPACE и на земле)
+        if keys[pygame.K_SPACE] and self.on_ground:
+            self.y_speed = -15
+            self.on_ground = False
+
+        # Гравитация
+        self.y_speed += 0.8
+
+        # Обновление позиции по горизонтали и вертикали
+        self.rect.x += self.x_speed
+        self.rect.y += self.y_speed
+
+        # Ограничение по границам экрана по горизонтали
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+    def handle_platform_collision(self, platforms):
+        # Проверка столкновений с платформами снизу (падение)
+        for platform in platforms:
+            if self.rect.colliderect(platform.rect):
+                # Если падаем вниз и пересекаем платформу снизу
+                if self.y_speed > 0 and self.rect.bottom > platform.rect.top:
+                    self.rect.bottom = platform.rect.top
+                    self.y_speed = 0
+                    self.on_ground = True
+
+# Класс платформы
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = platform_image
+        self.rect = self.image.get_rect(topleft=(x,y))
+
+# Создаем группы спрайтов
+player_group = pygame.sprite.Group()
+platforms_group = pygame.sprite.Group()
+
+# Создаем игрока
+player = Player()
+player_group.add(player)
+
+# Создаем платформы вручную
+platforms_positions = [
+    (0, HEIGHT - 50),
+    (200, HEIGHT - 150),
+    (400, HEIGHT - 250),
+    (600, HEIGHT - 350),
+]
+for pos in platforms_positions:
+    p = Platform(*pos)
+    platforms_group.add(p)
+
+# Основной цикл игры
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+    # Обновляем игрока и проверяем столкновения с платформами
+    player.update()
+    player.handle_platform_collision(platforms_group)
+
+    # Отрисовка сцены
+    screen.fill((135, 206, 235))  # голубой фон
+
+    platforms_group.draw(screen)
+    player_group.draw(screen)
+
+    pygame.display.flip()
+    clock.tick(60)
